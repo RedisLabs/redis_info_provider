@@ -1,0 +1,35 @@
+version: 2
+
+jobs:
+  build:
+    working_directory: ~/dev
+    docker:
+      - image: circleci/python:latest
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get install python-dev
+      - run:
+          name: Install pyenv
+          command: |
+            curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
+            echo 'export PATH="/home/circleci/.pyenv/bin:$PATH"' >>~/.bash_profile
+            /home/circleci/.pyenv/bin/pyenv --version
+            echo 'eval "$(pyenv init -)"' >>~/.bash_profile
+            echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
+            source ~/.bash_profile
+            eval "$(pyenv init -)"
+            eval "$(pyenv virtualenv-init -)"
+      - run:
+          name: Make tox env
+          command: |
+            python -m venv ~/tox_env
+            source ~/tox_env/bin/activate
+            pip install tox tox-pyenv
+      - run:
+          name: Run tests
+          command: |
+            source ~/tox_env/bin/activate
+            tox
