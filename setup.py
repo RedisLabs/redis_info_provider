@@ -18,6 +18,14 @@ if sys.version_info[:2] < (3, 5):
 if sys.version_info[:2] < (3, 4):
     install_requires.append('enum')
 
+tests_require = [
+    'six',
+    'mock',
+]
+
+extras = {
+    'test': tests_require,
+}
 
 setup(
     name='redis-info-provider',
@@ -42,9 +50,7 @@ setup(
     author_email='slava.koyfman@redislabs.com',
     description='Framework for serving info for an arbitrary number of redis-server instances',
     install_requires=install_requires,
-    tests_require=[
-        'six',
-        'mock'
-    ],
+    tests_require=tests_require,
+    extras_require=extras,
     test_suite='tests'
 )
