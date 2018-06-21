@@ -36,7 +36,7 @@ def main():
     print()
 
     for info in proxy.GetInfos(args.shard_ids, args.patterns):
-        print('-' * 20, 'INFO for shard {}'.format(info['shard_identifier']), '-' * 20)
+        print('-' * 20, 'INFO for shard {}'.format(info['meta']['shard_identifier']), '-' * 20)
         printer.pprint(info)
         print()
 

@@ -4,7 +4,7 @@ import time
 from .shard_pub import ShardPublisher
 from .redis_shard import InfoType
 import logging
-from typing import Mapping, Any, List
+from typing import List, Sequence
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class InfoProviderServicer(object):
 
     @classmethod
     def _filter_info(cls, full_info, key_patterns):
-        # type: (InfoType, List[str]) -> InfoType
+        # type: (InfoType, Sequence[str]) -> InfoType
 
         """
         Returns a filtered view of `full_info` according to the glob-style patterns in
@@ -23,7 +23,7 @@ class InfoProviderServicer(object):
         (e.g.: by using the pattern "cmdstat_hget*.")
 
         :param full_info: An info_pb2.Info instance to filter.
-        :param key_patterns: An iterable of glob-style key patterns.
+        :param key_patterns: A sequence of glob-style key patterns.
         """
 
         # Optimization: If no patterns specified, just return the full info that's already waiting
@@ -41,7 +41,7 @@ class InfoProviderServicer(object):
 
     @staticmethod
     def _key_matches_pattern(key_name, patterns):
-        # type: (str, List[str]) -> bool
+        # type: (str, Sequence[str]) -> bool
 
         """
         Returns True IFF `key_name` matches one of the shell-style wildcard patterns
@@ -51,8 +51,8 @@ class InfoProviderServicer(object):
             fnmatch.fnmatchcase(key_name, pattern) for pattern in patterns
         )
 
-    def GetInfos(self, shard_ids, key_patterns):
-        # type: (List[str], List[str]) -> List[InfoType]
+    def GetInfos(self, shard_ids=(), key_patterns=()):
+        # type: (Sequence[str], Sequence[str]) -> List[InfoType]
 
         """
         Returns a list of info dicts according to the shard-ids and key patterns
@@ -79,6 +79,7 @@ class InfoProviderServicer(object):
 
             msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
             msg['meta']['info_age'] = time.time() - shard.info_timestamp
+            msg['meta']['shard_identifier'] = shard_id
 
             resp.append(msg)
 

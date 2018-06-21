@@ -1,6 +1,7 @@
 import logging
 from typing import Union, Callable, Dict, Any
 import redis
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class RedisShard(object):
     def info(self, value):
         # type: (InfoType) -> None
         self._info = value
+        self.info_timestamp = time.time()
         self._update_interval()
 
     def _update_interval(self):
