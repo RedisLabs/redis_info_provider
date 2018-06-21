@@ -1,4 +1,3 @@
-import time
 from .shard_pub import ShardPublisher
 import gevent
 import gevent.socket
@@ -118,9 +117,7 @@ class InfoPoller(object):
                     info = redis_conn.info('all')
                     self.logger.debug('Polled shard %s', shard.id)
                     info['meta'] = {}
-                    info['meta']['shard_identifier'] = shard.id
                     shard.info = info
-                    shard.info_timestamp = time.time()
                     consecutive_failures = 0
                     gevent.sleep(shard.polling_interval())
             except redis.RedisError:
