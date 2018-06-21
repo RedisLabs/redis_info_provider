@@ -13,13 +13,14 @@ class TestInfoServicer(TestCase):
 
     @staticmethod
     def make_shard(id, info={}, info_timestamp=None):
-        fixedup_info = dict(info)
-        fixedup_info['meta'] = {}  # this is required to be present, even if empty
-        fixedup_info['instantaneous_ops_per_sec'] = 1.0  # needed in order to set the shard's polling frequency,
-                                                         # even though in this case no one will ever poll it...
-
         shard = RedisShard(id, None)
-        shard.info = fixedup_info
+
+        if info is not None:
+            fixedup_info = dict(info)
+            fixedup_info['meta'] = {}  # this is required to be present, even if empty
+            fixedup_info['instantaneous_ops_per_sec'] = 1.0     # needed in order to set the shard's polling frequency,
+                                                                # even though in this case no one will ever poll it...
+            shard.info = fixedup_info
 
         # override the timestamp, if requested. (by default this is set to current time when shard.info is set.)
         if info_timestamp is not None:
@@ -91,3 +92,35 @@ class TestInfoServicer(TestCase):
 
         for k in resp_info.keys():
             self.assertNotIn('removed', k, 'key in response INFO that should have been filtered')
+
+    def test_query_missing(self):
+        shard_ids = ['shard-1', 'shard-2']
+
+        for shard_id in shard_ids:
+            ShardPublisher.add_shard(self.make_shard(shard_id))
+
+        with self.assertRaises(KeyError):
+            response = self.servicer.GetInfos(shard_ids=['shard-x'])
+
+    def test_allow_partial_missing_info(self):
+        ShardPublisher.add_shard(self.make_shard('shard-1', info={'dummy': 'dummy'}))
+        ShardPublisher.add_shard(self.make_shard('shard-2', info=None))
+
+        response = self.servicer.GetInfos(shard_ids=['shard-1', 'shard-2'], allow_partial=True)
+        response_dict = {info['meta']['shard_identifier']: info for info in response}
+
+        self.assertIn('dummy', response_dict['shard-1'])
+        self.assertEqual(response_dict['shard-2']['meta']['info_age'], float('inf'),
+                         msg='Expected info_age for shard-2 to be +INF')
+        six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'info for shard .* not available')
+
+    def test_allow_partial_unknown_shard(self):
+        ShardPublisher.add_shard(self.make_shard('shard-1', info={'dummy': 'dummy'}))
+
+        response = self.servicer.GetInfos(shard_ids=['shard-1', 'shard-2'], allow_partial=True)
+        response_dict = {info['meta']['shard_identifier']: info for info in response}
+
+        self.assertIn('dummy', response_dict['shard-1'])
+        self.assertEqual(response_dict['shard-2']['meta']['info_age'], float('inf'),
+                         msg='Expected info_age for shard-2 to be +INF')
+        six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'shard .* not found')
