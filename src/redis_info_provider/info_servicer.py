@@ -2,7 +2,7 @@ from __future__ import print_function
 import fnmatch
 import time
 from .shard_pub import ShardPublisher
-from .redis_shard import InfoType
+from .redis_shard import InfoType, RedisShard
 import logging
 from typing import List, Sequence
 
@@ -51,12 +51,45 @@ class InfoProviderServicer(object):
             fnmatch.fnmatchcase(key_name, pattern) for pattern in patterns
         )
 
-    def GetInfos(self, shard_ids=(), key_patterns=()):
-        # type: (Sequence[str], Sequence[str]) -> List[InfoType]
+    @staticmethod
+    def _get_shard_with_info(shard_id):
+        # type: (str) -> RedisShard
+
+        """
+        Gets the shard object from the ShardPublisher if it contains valid INFO, or raises an
+        appropriate exception otherwise.
+        :param shard_id: The identifier of the shard.
+        :return: The shard object for shard 'shard_id'.
+        """
+
+        try:
+            shard = ShardPublisher.get_shard(shard_id)
+        except KeyError:
+            logger.info('received request for unknown shard (%s)', shard_id)
+            raise KeyError('shard {} not found'.format(shard_id))
+
+        if shard.info is None:
+            logger.info('received request for shard (%s) which seems to have not yet been polled', shard_id)
+            raise KeyError('info for shard {} not available'.format(shard_id))
+
+        return shard
+
+    def GetInfos(self, shard_ids=(), key_patterns=(), allow_partial=False):
+        # type: (Sequence[str], Sequence[str], bool) -> List[InfoType]
 
         """
         Returns a list of info dicts according to the shard-ids and key patterns
         specified in the query selector.
+        :param shard_ids: List of shard identifiers to query. If empty, all live
+            shards will be returned.
+        :param key_patterns: List of glob-like patterns to filter by. If not
+            empty, only keys that match one of the patterns will appear in the
+            response INFOs. (Plus the 'meta' key that is always present.)
+        :param allow_partial: If True, and a requested shard is missing or cannot
+            be queried, a response will still be returned, with the info_age for that
+            shard set to (float)+INF, and an additional 'error' string in the meta
+            dictionary. If False (the default), the same condition will raise
+            an exception.
         """
 
         resp = []
@@ -68,17 +101,18 @@ class InfoProviderServicer(object):
 
         for shard_id in shards_to_query:
             try:
-                shard = ShardPublisher.get_shard(shard_id)
-            except KeyError:
-                logger.info('received request for unknown shard (%s)', shard_id)
-                raise KeyError('shard {} not found'.format(shard_id))
+                shard = self._get_shard_with_info(shard_id)
+                msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
+                msg['meta']['info_age'] = time.time() - shard.info_timestamp
+            except KeyError as e:
+                if allow_partial:
+                    msg = {'meta': {
+                        'info_age': float('inf'),
+                        'error': str(e),
+                    }}
+                else:
+                    raise
 
-            if shard.info is None:
-                logger.info('received request for shard (%s) which seems to have not yet been polled', shard_id)
-                raise KeyError('info for shard {} not available'.format(shard_id))
-
-            msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
-            msg['meta']['info_age'] = time.time() - shard.info_timestamp
             msg['meta']['shard_identifier'] = shard_id
 
             resp.append(msg)
