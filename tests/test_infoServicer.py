@@ -5,6 +5,8 @@ from redis_info_provider import *
 
 
 class TestInfoServicer(TestCase):
+    CENTURY_IN_SEC = 3.154e9
+
     def setUp(self):
         self.servicer = InfoProviderServicer()
 
@@ -110,8 +112,8 @@ class TestInfoServicer(TestCase):
         response_dict = {info['meta']['shard_identifier']: info for info in response}
 
         self.assertIn('dummy', response_dict['shard-1'])
-        self.assertEqual(response_dict['shard-2']['meta']['info_age'], float('inf'),
-                         msg='Expected info_age for shard-2 to be +INF')
+        self.assertGreater(response_dict['shard-2']['meta']['info_age'], self.CENTURY_IN_SEC,
+                           msg='Expected info_age for shard-2 to be very large')
         six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'info for shard .* not available')
 
     def test_allow_partial_unknown_shard(self):
@@ -121,6 +123,6 @@ class TestInfoServicer(TestCase):
         response_dict = {info['meta']['shard_identifier']: info for info in response}
 
         self.assertIn('dummy', response_dict['shard-1'])
-        self.assertEqual(response_dict['shard-2']['meta']['info_age'], float('inf'),
-                         msg='Expected info_age for shard-2 to be +INF')
+        self.assertGreater(response_dict['shard-2']['meta']['info_age'], self.CENTURY_IN_SEC,
+                           msg='Expected info_age for shard-2 to be very large')
         six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'shard .* not found')
