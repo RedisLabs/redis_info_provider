@@ -108,7 +108,7 @@ class InfoProviderServicer(object):
                 if allow_partial:
                     msg = {'meta': {
                         'info_age': 1e38,  # Very large, but still fits in a single-precision float
-                        'error': str(e),
+                        'error': str(e).strip('\'"'),  # str() for KeyError adds extra quotes that we don't want
                     }}
                 else:
                     raise
