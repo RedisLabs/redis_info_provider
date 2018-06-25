@@ -87,9 +87,9 @@ class InfoProviderServicer(object):
             response INFOs. (Plus the 'meta' key that is always present.)
         :param allow_partial: If True, and a requested shard is missing or cannot
             be queried, a response will still be returned, with the info_age for that
-            shard set to (float)+INF, and an additional 'error' string in the meta
-            dictionary. If False (the default), the same condition will raise
-            an exception.
+            shard set to a very large value (>> century), and an additional 'error'
+            string in the meta dictionary. If False (the default), the same condition
+            will raise an exception.
         """
 
         resp = []
@@ -107,7 +107,7 @@ class InfoProviderServicer(object):
             except KeyError as e:
                 if allow_partial:
                     msg = {'meta': {
-                        'info_age': float('inf'),
+                        'info_age': 1e38,  # Very large, but still fits in a single-precision float
                         'error': str(e),
                     }}
                 else:
