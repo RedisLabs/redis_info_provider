@@ -65,11 +65,11 @@ class InfoProviderServicer(object):
         try:
             shard = ShardPublisher.get_shard(shard_id)
         except KeyError:
-            logger.info('received request for unknown shard (%s)', shard_id)
+            logger.warning('received request for unknown shard (%s)', shard_id)
             raise KeyError('shard {} not found'.format(shard_id))
 
         if shard.info is None:
-            logger.info('received request for shard (%s) which seems to have not yet been polled', shard_id)
+            logger.warning('received request for shard (%s) which seems to have not yet been polled', shard_id)
             raise KeyError('info for shard {} not available'.format(shard_id))
 
         return shard
