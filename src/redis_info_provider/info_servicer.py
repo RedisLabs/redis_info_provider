@@ -97,7 +97,11 @@ class InfoProviderServicer(object):
         logger.debug('Received request for shards %s, patterns %s',
                      shard_ids, key_patterns)
 
-        shards_to_query = shard_ids or ShardPublisher.get_live_shard_ids()
+        shards_to_query = (
+                shard_ids or
+                # If all shards were requested, only consider the live ones that have already been polled at least once
+                [shard.id for shard in ShardPublisher.get_live_shards() if shard.info]
+        )
 
         for shard_id in shards_to_query:
             try:
