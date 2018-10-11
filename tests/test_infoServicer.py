@@ -1,5 +1,4 @@
 from unittest import TestCase
-from mock import NonCallableMock, patch
 import six
 from redis_info_provider import *
 
@@ -79,6 +78,29 @@ class TestInfoServicer(TestCase):
         for info in response:
             self.assertSensibleAge(info['meta']['info_age'])
 
+    def test_query_all_with_unpolled(self):
+        """
+        Test what happens when we request all shards when some of the live shards have never been
+        polled yet (don't have associated INFO). Correct behavior is simply returning only the
+        shards that have INFO available.
+        """
+
+        shard_ids = ['shard-1', 'shard-2', 'shard-3']
+
+        for shard_id in shard_ids:
+            ShardPublisher.add_shard(self.make_shard(shard_id))
+        ShardPublisher.add_shard(self.make_shard('not-polled', info=None))
+
+        response = self.servicer.GetInfos()
+
+        response_shard_ids = [info['meta']['shard_identifier'] for info in response]
+
+        six.assertCountEqual(self, shard_ids, response_shard_ids,
+                             msg='Unexpected or missing shards in response')
+
+        for info in response:
+            self.assertSensibleAge(info['meta']['info_age'])
+
     def test_query_filtering(self):
         shard_id = 'shard-1'
         info = {
@@ -102,7 +124,7 @@ class TestInfoServicer(TestCase):
             ShardPublisher.add_shard(self.make_shard(shard_id))
 
         with self.assertRaises(KeyError):
-            response = self.servicer.GetInfos(shard_ids=['shard-x'])
+            self.servicer.GetInfos(shard_ids=['shard-x'])
 
     def test_allow_partial_missing_info(self):
         ShardPublisher.add_shard(self.make_shard('shard-1', info={'dummy': 'dummy'}))
