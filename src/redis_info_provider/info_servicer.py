@@ -74,8 +74,8 @@ class InfoProviderServicer(object):
 
         return shard
 
-    def GetInfos(self, shard_ids=(), key_patterns=(), allow_partial=False):
-        # type: (Sequence[str], Sequence[str], bool) -> List[InfoType]
+    def GetInfos(self, shard_ids=(), key_patterns=(), allow_partial=False, max_age=0.0):
+        # type: (Sequence[str], Sequence[str], bool, float) -> List[InfoType]
 
         """
         Returns a list of info dicts according to the shard-ids and key patterns
@@ -90,6 +90,8 @@ class InfoProviderServicer(object):
             shard set to a very large value (>> century), and an additional 'error'
             string in the meta dictionary. If False (the default), the same condition
             will raise an exception.
+        :param max_age: If specified and non-zero, only shard infos whose age is less-
+            than-or-equal-to max_age will be returned in the response.
         """
 
         resp = []
@@ -106,8 +108,11 @@ class InfoProviderServicer(object):
         for shard_id in shards_to_query:
             try:
                 shard = self._get_shard_with_info(shard_id)
+                info_age = time.time() - shard.info_timestamp
+                if max_age and info_age > max_age:
+                    continue
                 msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
-                msg['meta']['info_age'] = time.time() - shard.info_timestamp
+                msg['meta']['info_age'] = info_age
             except KeyError as e:
                 if allow_partial:
                     msg = {'meta': {
