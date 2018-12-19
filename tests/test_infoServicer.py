@@ -1,6 +1,7 @@
 from unittest import TestCase
 import six
 from redis_info_provider import *
+from mock import patch
 
 
 class TestInfoServicer(TestCase):
@@ -148,3 +149,14 @@ class TestInfoServicer(TestCase):
         self.assertGreater(response_dict['shard-2']['meta']['info_age'], self.CENTURY_IN_SEC,
                            msg='Expected info_age for shard-2 to be very large')
         six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'shard .* not found')
+
+    @patch('redis_info_provider.info_servicer.time.time')
+    def test_max_age(self, time_mock):
+        now = 1545240843.4637716
+        ShardPublisher.add_shard(self.make_shard('shard-1', info={'dummy': 'dummy'}, info_timestamp=now))
+        time_mock.return_value = now + 4.0
+        response = self.servicer.GetInfos(max_age=5.0)
+        self.assertEqual(len(response), 1)
+        time_mock.return_value = now + 6.0
+        response = self.servicer.GetInfos(max_age=5.0)
+        self.assertEqual(len(response), 0)

@@ -91,4 +91,5 @@ class TestInfoPoller(TestCase):
     # RedisShard that specifies no delay between consecutive pollings
     class NoDelayShard(RedisShard):
         def polling_interval(self): return 0.0
+
         def _update_interval(self): pass  # the real one will fail because our INFO is missing required keys
