@@ -110,6 +110,7 @@ class InfoProviderServicer(object):
                 shard = self._get_shard_with_info(shard_id)
                 info_age = time.time() - shard.info_timestamp
                 if max_age and info_age > max_age:
+                    logger.debug('Shard %s info age %s > %s (max-age); Skipping', shard_id, info_age, max_age)
                     continue
                 msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
                 msg['meta']['info_age'] = info_age
