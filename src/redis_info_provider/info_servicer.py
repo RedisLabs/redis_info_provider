@@ -1,5 +1,4 @@
 from __future__ import print_function
-import fnmatch
 import time
 from .shard_pub import ShardPublisher
 from .redis_shard import InfoType, RedisShard
