@@ -1,10 +1,9 @@
 from __future__ import print_function
-import fnmatch
 import time
 from .shard_pub import ShardPublisher
 from .redis_shard import InfoType, RedisShard
 import logging
-from typing import List, Sequence
+from typing import List, Sequence, AbstractSet
 
 
 logger = logging.getLogger(__name__)
@@ -14,42 +13,27 @@ class InfoProviderServicer(object):
     """Implements the InfoProvider RPC interface."""
 
     @classmethod
-    def _filter_info(cls, full_info, key_patterns):
-        # type: (InfoType, Sequence[str]) -> InfoType
+    def _filter_info(cls, full_info, keys):
+        # type: (InfoType, AbstractSet[str]) -> InfoType
 
         """
-        Returns a filtered view of `full_info` according to the glob-style patterns in
-        `key_patterns`. This allows, for example, filtering for only specific cmd stats.
-        (e.g.: by using the pattern "cmdstat_hget*.")
+        Returns a filtered view of `full_info` according to the key-list specified in
+        `keys`. This reduces network overhead by only transmitting the desired subset
+        of keys.
 
         :param full_info: An info_pb2.Info instance to filter.
-        :param key_patterns: A sequence of glob-style key patterns.
+        :param keys: A set of strings to match for.
         """
 
-        # Optimization: If no patterns specified, just return the full info that's already waiting
-        if not key_patterns:
+        # Optimization: If no keys specified, just return the full info that's already waiting
+        if not keys:
             return full_info
 
+        info = {k: full_info[k] for k in keys if k in full_info}
         # always include the metadata
-        info = {'meta': full_info['meta']}
-
-        for k, v in full_info.items():
-            if cls._key_matches_pattern(k, key_patterns):
-                info[k] = v
+        info['meta'] = full_info['meta']
 
         return info
-
-    @staticmethod
-    def _key_matches_pattern(key_name, patterns):
-        # type: (str, Sequence[str]) -> bool
-
-        """
-        Returns True IFF `key_name` matches one of the shell-style wildcard patterns
-        in `patterns`.
-        """
-        return any(
-            fnmatch.fnmatchcase(key_name, pattern) for pattern in patterns
-        )
 
     @staticmethod
     def _get_shard_with_info(shard_id):
@@ -74,17 +58,17 @@ class InfoProviderServicer(object):
 
         return shard
 
-    def GetInfos(self, shard_ids=(), key_patterns=(), allow_partial=False, max_age=0.0):
+    def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0):
         # type: (Sequence[str], Sequence[str], bool, float) -> List[InfoType]
 
         """
-        Returns a list of info dicts according to the shard-ids and key patterns
+        Returns a list of info dicts according to the shard-ids and keys
         specified in the query selector.
         :param shard_ids: List of shard identifiers to query. If empty, all live
             shards will be returned.
-        :param key_patterns: List of glob-like patterns to filter by. If not
-            empty, only keys that match one of the patterns will appear in the
-            response INFOs. (Plus the 'meta' key that is always present.)
+        :param keys: List of exact-match keys to filter for. If not empty, only
+            keys that are in this list will appear in the response INFOs.
+            (Plus the 'meta' key that is always present.)
         :param allow_partial: If True, and a requested shard is missing or cannot
             be queried, a response will still be returned, with the info_age for that
             shard set to a very large value (>> century), and an additional 'error'
@@ -96,8 +80,7 @@ class InfoProviderServicer(object):
 
         resp = []
 
-        logger.debug('Received request for shards %s, patterns %s',
-                     shard_ids, key_patterns)
+        logger.debug('Received request for shards %s, keys %s', shard_ids, keys)
 
         shards_to_query = (
                 shard_ids or
@@ -112,7 +95,7 @@ class InfoProviderServicer(object):
                 if max_age and info_age > max_age:
                     logger.debug('Shard %s info age %s > %s (max-age); Skipping', shard_id, info_age, max_age)
                     continue
-                msg = self._filter_info(full_info=shard.info, key_patterns=key_patterns)
+                msg = self._filter_info(full_info=shard.info, keys=set(keys))
                 msg['meta']['info_age'] = info_age
             except KeyError as e:
                 if allow_partial:

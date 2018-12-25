@@ -23,8 +23,8 @@ def main():
                         help='the address of the server to connect to')
     parser.add_argument('-s', '--shard-ids', nargs='*', default=[],
                         help='identifiers of Redis shards to query (omit to query all shards)')
-    parser.add_argument('--patterns', nargs='*', default=[],
-                        help='wildcard pattern(s) for INFO keys to query (omit to query all keys)')
+    parser.add_argument('--keys', nargs='*', default=[],
+                        help='list of INFO keys to query (omit to query all keys)')
     args = parser.parse_args()
 
     server_addr = 'http://{}:{}/'.format(args.host, args.port)
@@ -35,7 +35,7 @@ def main():
     proxy = xmlrpcclient.ServerProxy(server_addr)
     print()
 
-    for info in proxy.GetInfos(args.shard_ids, args.patterns):
+    for info in proxy.GetInfos(args.shard_ids, args.keys):
         print('-' * 20, 'INFO for shard {}'.format(info['meta']['shard_identifier']), '-' * 20)
         printer.pprint(info)
         print()
