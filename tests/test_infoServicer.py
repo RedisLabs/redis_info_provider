@@ -151,6 +151,18 @@ class TestInfoServicer(TestCase):
                            msg='Expected info_age for shard-2 to be very large')
         six.assertRegex(self, response_dict['shard-2']['meta']['error'], 'shard .* not found')
 
+    def test_backwards_compatibility(self):
+        ShardPublisher.add_shard(self.make_shard('shard-1', info={'dummy1': 'dummy1', 'dummy2': 'dummy2'}))
+        ShardPublisher.add_shard(self.make_shard('shard-2', info={'dummy1': 'dummy1'}))
+
+        response = self.servicer.GetInfos(shard_ids=['shard-1', 'shard-2'], key_patterns=['dummy1'])
+        response_dict = {info['meta']['shard_identifier']: info for info in response}
+        self.assertIn('dummy1', response_dict['shard-1'])
+        self.assertIn('dummy1', response_dict['shard-2'])
+
+        with self.assertRaises(TypeError):
+            self.servicer.GetInfos(shard_ids=['shard-1'], key_patterns=['dummy1'], keys=['dummy1'])
+
     @patch('redis_info_provider.info_servicer.time.time')
     def test_max_age(self, time_mock):
         now = 1545240843.4637716
