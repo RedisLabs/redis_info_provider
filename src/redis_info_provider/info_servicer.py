@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def deprecated_alias(**aliases):
+    """
+    Decorator that renames deprecated parameters names of a function to their new names and then calls the function with
+    the new parameter names.
+    :param aliases: Dict[str,str] - mapping of deprecated parameter names to their new names.
+    :return: wrapper of the function that renames the parameters and then calls the function
+    """
     def deco(f):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
@@ -22,6 +28,13 @@ def deprecated_alias(**aliases):
 
 
 def rename_kwargs(func_name, kwargs, aliases):
+    """
+    Rename deprecated parameters of kwargs to their new name as as it appears in aliases dict.
+    :param func_name: str (function that the decorator is applied on)
+    :param kwargs: Dict[str, str] of arguments the given function was called with
+    :param aliases: Dict[str, str] that maps deprecated parameters to new parameters names
+    :raises TypeError if both deprecated and new parameters were received
+    """
     for alias, new in aliases.items():
         if alias in kwargs:
             if new in kwargs:
@@ -87,7 +100,7 @@ class InfoProviderServicer(object):
         Returns a list of info dicts according to the shard-ids and keys
         specified in the query selector.
         Note: if deprecated parameter "key_patterns" is passed, we use it as "keys" for backwards compatibility.
-        However, glob-like patterns to filter by are no longer supported.
+        However, filtering by glob-like patterns is no longer supported.
         :param shard_ids: List of shard identifiers to query. If empty, all live
             shards will be returned.
         :param keys: List of exact-match keys to filter for. If not empty, only
