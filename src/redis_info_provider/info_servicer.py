@@ -13,10 +13,9 @@ logger = logging.getLogger(__name__)
 
 def deprecated_alias(**aliases):
     """
-    Decorator that renames deprecated parameters names of a function to their new names and then calls the function with
+    Decorator that renames deprecated parameter names of a function to their new names and then calls the function with
     the new parameter names.
     :param aliases: Dict[str,str] - mapping of deprecated parameter names to their new names.
-    :return: wrapper of the function that renames the parameters and then calls the function
     """
     def deco(f):
         @functools.wraps(f)
@@ -30,10 +29,10 @@ def deprecated_alias(**aliases):
 def rename_kwargs(func_name, kwargs, aliases):
     """
     Rename deprecated parameters of kwargs to their new name as as it appears in aliases dict.
-    :param func_name: str (function that the decorator is applied on)
+    :param func_name: str (name of function that the decorator is applied to)
     :param kwargs: Dict[str, str] of arguments the given function was called with
-    :param aliases: Dict[str, str] that maps deprecated parameters to new parameters names
-    :raises TypeError if both deprecated and new parameters were received
+    :param aliases: Dict[str, str] that maps deprecated parameters to new parameter names
+    :raises TypeError if both an argument and its deprecated alias were received
     """
     for alias, new in aliases.items():
         if alias in kwargs:
