@@ -1,5 +1,7 @@
 from __future__ import print_function
 import time
+import functools
+import warnings
 from .shard_pub import ShardPublisher
 from .redis_shard import InfoType, RedisShard
 import logging
@@ -7,6 +9,37 @@ from typing import List, Sequence, AbstractSet
 
 
 logger = logging.getLogger(__name__)
+
+
+def deprecated_alias(**aliases):
+    """
+    Decorator that renames deprecated parameter names of a function to their new names and then calls the function with
+    the new parameter names.
+    :param aliases: Dict[str,str] - mapping of deprecated parameter names to their new names.
+    """
+    def deco(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            rename_kwargs(f.__name__, kwargs, aliases)
+            return f(*args, **kwargs)
+        return wrapper
+    return deco
+
+
+def rename_kwargs(func_name, kwargs, aliases):
+    """
+    Rename deprecated parameters of kwargs to their new name as as it appears in aliases dict.
+    :param func_name: str (name of function that the decorator is applied to)
+    :param kwargs: Dict[str, str] of arguments the given function was called with
+    :param aliases: Dict[str, str] that maps deprecated parameters to new parameter names
+    :raises TypeError if both an argument and its deprecated alias were received
+    """
+    for alias, new in aliases.items():
+        if alias in kwargs:
+            if new in kwargs:
+                raise TypeError('{} received both {} and {}'.format(func_name, alias, new))
+            warnings.warn('{} is deprecated; use {}'.format(alias, new), DeprecationWarning)
+            kwargs[new] = kwargs.pop(alias)
 
 
 class InfoProviderServicer(object):
@@ -58,12 +91,15 @@ class InfoProviderServicer(object):
 
         return shard
 
+    @deprecated_alias(key_patterns='keys')
     def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0):
         # type: (Sequence[str], Sequence[str], bool, float) -> List[InfoType]
 
         """
         Returns a list of info dicts according to the shard-ids and keys
         specified in the query selector.
+        Note: if deprecated parameter "key_patterns" is passed, we use it as "keys" for backwards compatibility.
+        However, filtering by glob-like patterns is no longer supported.
         :param shard_ids: List of shard identifiers to query. If empty, all live
             shards will be returned.
         :param keys: List of exact-match keys to filter for. If not empty, only
