@@ -46,7 +46,7 @@ class InfoProviderServicer(object):
     """Implements the InfoProvider RPC interface."""
 
     @classmethod
-    def _filter_info(cls, full_info, keys):
+    def _filter_info(cls, full_info, keys, exact=True):
         # type: (InfoType, AbstractSet[str]) -> InfoType
 
         """
@@ -58,11 +58,20 @@ class InfoProviderServicer(object):
         :param keys: A set of strings to match for.
         """
 
+        def is_matching_key(full_key, keys, exact=True):
+            if exact:
+                return full_key in keys
+            else:
+                for key in keys:
+                    if key in full_key:
+                        return True
+                return False
+
         # Optimization: If no keys specified, just return the full info that's already waiting
         if not keys:
             return full_info
 
-        info = {k: full_info[k] for k in keys if k in full_info}
+        info = {k: full_info[k] for k in full_info if is_matching_key(k, keys, exact=exact)}
         # always include the metadata
         info['meta'] = full_info['meta']
 
@@ -92,7 +101,7 @@ class InfoProviderServicer(object):
         return shard
 
     @deprecated_alias(key_patterns='keys')
-    def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0):
+    def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0, exact=True):
         # type: (Sequence[str], Sequence[str], bool, float) -> List[InfoType]
 
         """
@@ -112,6 +121,8 @@ class InfoProviderServicer(object):
             will raise an exception.
         :param max_age: If specified and non-zero, only shard infos whose age is less-
             than-or-equal-to max_age will be returned in the response.
+        :param exact: If True, each key in 'keys' must be an exact match wo a key in INFO.
+            Otherwise, we check if each key in 'keys' is a substing of a key in INFO.
         """
 
         resp = []
@@ -131,7 +142,7 @@ class InfoProviderServicer(object):
                 if max_age and info_age > max_age:
                     logger.debug('Shard %s info age %s > %s (max-age); Skipping', shard_id, info_age, max_age)
                     continue
-                msg = self._filter_info(full_info=shard.info, keys=set(keys))
+                msg = self._filter_info(full_info=shard.info, keys=set(keys), exact=exact)
                 msg['meta']['info_age'] = info_age
             except KeyError as e:
                 if allow_partial:

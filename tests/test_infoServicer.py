@@ -119,6 +119,23 @@ class TestInfoServicer(TestCase):
             self.assertNotIn('removed', k, 'key in response INFO that should have been filtered')
         self.assertEqual(len(resp_info), 3, 'Unexpected keys in response ({})'.format(resp_info.keys()))
 
+    def test_query_filtering_not_exact(self):
+        shard_id = 'shard-1'
+        info = {
+            'dummy_key1': 'dummy',
+            'dummy_key2': 'dummy',
+            'removed_key1': 'removed',
+            'removed_key2': 'removed',
+        }
+
+        ShardPublisher.add_shard(self.make_shard(shard_id, info=info))
+
+        resp_info = self.servicer.GetInfos(shard_ids=[shard_id], keys=['dummy'], exact=False)[0]
+
+        for k in resp_info.keys():
+            self.assertNotIn('removed', k, 'key in response INFO that should have been filtered')
+        self.assertEqual(len(resp_info), 3, 'Unexpected keys in response ({})'.format(resp_info.keys()))
+
     def test_query_missing(self):
         shard_ids = ['shard-1', 'shard-2']
 
