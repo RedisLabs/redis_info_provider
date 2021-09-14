@@ -46,7 +46,7 @@ class InfoProviderServicer(object):
     """Implements the InfoProvider RPC interface."""
 
     @classmethod
-    def _filter_info(cls, full_info, keys, exact=True):
+    def _filter_info(cls, full_info, keys, prefix_matching=False):
         # type: (InfoType, AbstractSet[str]) -> InfoType
 
         """
@@ -56,14 +56,16 @@ class InfoProviderServicer(object):
 
         :param full_info: An info_pb2.Info instance to filter.
         :param keys: A set of strings to match for.
+        :param prefix_matching: If True, we treat each key in `keys` as a prefix of a
+            field in `full_info`
         """
 
-        def is_matching_key(full_key, keys, exact=True):
-            if exact:
+        def is_matching_key(full_key, keys, prefix_matching=False):
+            if not prefix_matching:
                 return full_key in keys
             else:
                 for key in keys:
-                    if key in full_key:
+                    if full_key.startswith(key):
                         return True
                 return False
 
@@ -71,7 +73,7 @@ class InfoProviderServicer(object):
         if not keys:
             return full_info
 
-        info = {k: full_info[k] for k in full_info if is_matching_key(k, keys, exact=exact)}
+        info = {k: full_info[k] for k in full_info if is_matching_key(k, keys, prefix_matching=prefix_matching)}
         # always include the metadata
         info['meta'] = full_info['meta']
 
@@ -101,7 +103,7 @@ class InfoProviderServicer(object):
         return shard
 
     @deprecated_alias(key_patterns='keys')
-    def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0, exact=True):
+    def GetInfos(self, shard_ids=(), keys=(), allow_partial=False, max_age=0.0, prefix_matching=False):
         # type: (Sequence[str], Sequence[str], bool, float) -> List[InfoType]
 
         """
@@ -121,8 +123,8 @@ class InfoProviderServicer(object):
             will raise an exception.
         :param max_age: If specified and non-zero, only shard infos whose age is less-
             than-or-equal-to max_age will be returned in the response.
-        :param exact: If True, each key in 'keys' must be an exact match wo a key in INFO.
-            Otherwise, we check if each key in 'keys' is a substing of a key in INFO.
+        :param prefix_matching: If True, we treat each key in `keys` as a prefix of a
+            field in `full_info`
         """
 
         resp = []
@@ -142,7 +144,7 @@ class InfoProviderServicer(object):
                 if max_age and info_age > max_age:
                     logger.debug('Shard %s info age %s > %s (max-age); Skipping', shard_id, info_age, max_age)
                     continue
-                msg = self._filter_info(full_info=shard.info, keys=set(keys), exact=exact)
+                msg = self._filter_info(full_info=shard.info, keys=set(keys), prefix_matching=prefix_matching)
                 msg['meta']['info_age'] = info_age
             except KeyError as e:
                 if allow_partial:
