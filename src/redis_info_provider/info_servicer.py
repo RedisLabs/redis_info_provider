@@ -64,9 +64,8 @@ class InfoProviderServicer(object):
             if not prefix_matching:
                 return full_key in keys
             else:
-                for key in keys:
-                    if full_key.startswith(key):
-                        return True
+                if full_key.startswith(tuple(keys)):
+                    return True
                 return False
 
         # Optimization: If no keys specified, just return the full info that's already waiting
