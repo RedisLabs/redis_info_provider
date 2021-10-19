@@ -1,8 +1,7 @@
-version: 2
+version: 2.1
 
 jobs:
   build:
-    working_directory: ~/dev
     docker:
       - image: circleci/python:3.6
     steps:
@@ -10,26 +9,41 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            sudo apt-get install python-dev
+            sudo apt-get install -y python-dev
       - run:
           name: Install pyenv
           command: |
             curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-            echo 'export PATH="/home/circleci/.pyenv/bin:$PATH"' >>~/.bash_profile
-            /home/circleci/.pyenv/bin/pyenv --version
-            echo 'eval "$(pyenv init -)"' >>~/.bash_profile
-            echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
-            source ~/.bash_profile
+            cat \<<-'EOF' > /tmp/pyenv.sh
+            export PYENV_ROOT="/home/circleci/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
             eval "$(pyenv init -)"
             eval "$(pyenv virtualenv-init -)"
+            if [[ -d /home/circleci/venv ]]; then
+                source /home/circleci/venv/bin/activate
+            fi
+            EOF
+            sudo mv /tmp/pyenv.sh /etc/profile.d/
+            bash -l -c "pyenv --version"
+            bash -l -c "python -m venv ~/venv"
       - run:
-          name: Make tox env
+          name: Install tox
+          shell: /bin/bash -eo pipefail -l
           command: |
-            python -m venv ~/tox_env
-            source ~/tox_env/bin/activate
             pip install tox tox-pyenv
       - run:
           name: Run tests
+          shell: /bin/bash -eo pipefail -l
           command: |
-            source ~/tox_env/bin/activate
             tox
+
+workflows:
+  version: 2
+  default-flow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
