@@ -1,8 +1,7 @@
-version: 2
+version: 2.1
 
 jobs:
   build:
-    working_directory: ~/dev
     docker:
       - image: circleci/python:3.6
     steps:
@@ -10,15 +9,15 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            sudo apt-get install python-dev
+            sudo apt-get install -y python-dev
       - run:
           name: Install pyenv
           command: |
             curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-            echo 'export PATH="/home/circleci/.pyenv/bin:$PATH"' >>~/.bash_profile
+            echo 'export PATH="/home/circleci/.pyenv/bin:$PATH"' >> ~/.bash_profile
             /home/circleci/.pyenv/bin/pyenv --version
-            echo 'eval "$(pyenv init -)"' >>~/.bash_profile
-            echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
+            echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
+            echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bash_profile
             source ~/.bash_profile
             eval "$(pyenv init -)"
             eval "$(pyenv virtualenv-init -)"
@@ -33,3 +32,14 @@ jobs:
           command: |
             source ~/tox_env/bin/activate
             tox
+
+workflows:
+  version: 2
+  default-flow:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
