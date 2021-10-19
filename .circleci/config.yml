@@ -14,14 +14,14 @@ jobs:
           name: Install pyenv
           command: |
             curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-            sudo cat \<<-EOF > /etc/profile.d/pyenv.sh
-              export PYENV_ROOT="/home/circleci/.pyenv"
-              export PATH="$PYENV_ROOT/bin:$PATH"
-              eval "$(pyenv init -)"
-              eval "$(pyenv virtualenv-init -)"
-              if [[ -d /home/circleci/venv ]]; then
+            sudo cat \<<-'EOF' > /etc/profile.d/pyenv.sh
+            export PYENV_ROOT="/home/circleci/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
+            eval "$(pyenv init -)"
+            eval "$(pyenv virtualenv-init -)"
+            if [[ -d /home/circleci/venv ]]; then
                 source /home/circleci/venv/bin/activate
-              fi
+            fi
             EOF
             bash -l -c "pyenv --version"
             bash -l -c "python -m venv ~/venv"
