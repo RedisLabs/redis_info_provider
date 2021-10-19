@@ -14,23 +14,26 @@ jobs:
           name: Install pyenv
           command: |
             curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-            echo 'export PATH="/home/circleci/.pyenv/bin:$PATH"' >> ~/.bash_profile
-            /home/circleci/.pyenv/bin/pyenv --version
-            echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
-            echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bash_profile
-            source ~/.bash_profile
-            eval "$(pyenv init -)"
-            eval "$(pyenv virtualenv-init -)"
+            sudo cat <<-EOF > /etc/profile.d/pyenv.sh
+              export PYENV_ROOT="/home/circleci/.pyenv"
+              export PATH="$PYENV_ROOT/bin:$PATH"
+              eval "$(pyenv init -)"
+              eval "$(pyenv virtualenv-init -)"
+              if [[ -d /home/circleci/venv ]]; then
+                source /home/circleci/venv/bin/activate
+              fi
+            EOF
+            bash -l -c "pyenv --version"
+            bash -l -c "python -m venv ~/venv"
       - run:
-          name: Make tox env
+          name: Install tox
+          shell: /bin/bash -eo pipefail -l
           command: |
-            python -m venv ~/tox_env
-            source ~/tox_env/bin/activate
             pip install tox tox-pyenv
       - run:
           name: Run tests
+          shell: /bin/bash -eo pipefail -l
           command: |
-            source ~/tox_env/bin/activate
             tox
 
 workflows:
