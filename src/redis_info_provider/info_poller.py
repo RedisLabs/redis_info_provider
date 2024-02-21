@@ -134,3 +134,6 @@ class InfoPoller(object):
                     )
                 gevent.sleep(1)  # Cool-off period
                 continue  # Retry
+            except Exception as e:
+                self.logger.error(" info_poller shard %s caught exception %s",shard.id,e)
+                gevent.sleep(2)

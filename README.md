@@ -37,6 +37,12 @@ pip install .
 python setup.py test
 ```
 
+### packaging 
+
+```
+python setup.py sdist
+```
+
 ## Usage Examples
 
 The framework comes with sample client/server applications to demonstrate its use. They use Python's included
