@@ -37,7 +37,7 @@ pip install .
 python setup.py test
 ```
 
-### packaging 
+### Packaging Source Distribution
 
 ```
 python setup.py sdist
