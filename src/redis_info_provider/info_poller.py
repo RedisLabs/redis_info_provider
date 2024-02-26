@@ -21,8 +21,8 @@ class InfoPoller(object):
     and made available via the ShardPublisher.
     """
 
-    def __init__(self, grace=3):
-        # type: (int) -> None
+    def __init__(self, grace=3, logger=None):
+        # type: (int,Logger) -> None
 
         """
         :param grace: Number of consecutive times a shard polling needs to fail before
@@ -31,7 +31,7 @@ class InfoPoller(object):
             errors being logged unnecessarily.
         """
         self._greenlets = {}  # type: Dict[str, gevent.Greenlet]
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
         self._grace = grace
 
         # Subscribe to receive shard event notifications
@@ -78,6 +78,10 @@ class InfoPoller(object):
             lambda: self._poll_shard(shard)
         )
 
+        def handle_unexpected_termination(_grnlt):
+            self.logger.error("one of greenlets exited unexpectedly..")
+        self._greenlets[shard.id].link_exception(handle_unexpected_termination)
+
     def _remove_shard(self, shard):
         # type: (RedisShard) -> None
 
@@ -101,7 +105,8 @@ class InfoPoller(object):
         Shard-polling greenlet main().
         """
 
-        consecutive_failures = 0
+        consecutive_redis_failures = 0
+        consecutive_general_failures = 0
 
         # Retry loop. Redis errors (disconnects etc.) shouldn't stop us from polling as
         # long as the shard lives. However, other unexpected problems should at the
@@ -118,22 +123,28 @@ class InfoPoller(object):
                     self.logger.debug('Polled shard %s', shard.id)
                     info['meta'] = {}
                     shard.info = info
-                    consecutive_failures = 0
+                    consecutive_redis_failures = 0; consecutive_general_failures = 0
                     gevent.sleep(shard.polling_interval())
             except redis.RedisError:
-                consecutive_failures += 1
-                if consecutive_failures < self._grace:
+                consecutive_redis_failures += 1
+                if consecutive_redis_failures < self._grace:
                     self.logger.debug(
                         'Redis error polling shard %s for %d consecutive times; still within grace period; will retry',
-                        shard.id, consecutive_failures
+                        shard.id, consecutive_redis_failures
                     )
                 else:
                     self.logger.warning(
                         'Redis error polling shard %s for %d consecutive times; will retry',
-                        shard.id, consecutive_failures
+                        shard.id, consecutive_redis_failures
                     )
                 gevent.sleep(1)  # Cool-off period
                 continue  # Retry
             except Exception as e:
-                self.logger.error(" info_poller shard %s caught exception %s",shard.id,e)
-                gevent.sleep(2)
+                consecutive_general_failures += 1
+                self.logger.error(" info_poller shard %s caught exception: %s",shard.id,e)
+                if consecutive_general_failures < self._grace:
+                    gevent.sleep(2)
+                else:
+                    self.logger.error("general exception caught more than %s consecutive times; poller %s exiting..",
+                                 consecutive_general_failures, shard.id)
+                    raise e

@@ -1,5 +1,3 @@
-import time
-
 import gevent
 import gevent.event
 import psutil
@@ -38,7 +36,6 @@ class LocalShardWatcher(object):
         """
         self._update_freq = update_frequency
         self._should_stop = gevent.event.Event()
-        self.num_checks = 0
         self._greenlet = gevent.spawn(self._greenlet_main)
 
     def stop(self):
@@ -61,38 +58,24 @@ class LocalShardWatcher(object):
 
     def _greenlet_main(self):
         # type: () -> None
-        logger.info('local shards watcher starting..')
-        try:
-            while not self._should_stop.is_set():
-                published_shard_ids = ShardPublisher.get_live_shard_ids()
-                # monitor if info is still polled for every shard
-                if self.num_checks > 5:
-                    check_ts = time.time()
-                    for sid in published_shard_ids:
-                        info_age = check_ts - ShardPublisher.get_shard(sid).info_timestamp
-                        if info_age > 10 :
-                            logger.warning("stale info suspected: shard %s last info taken %s secs ago ",
-                                           sid, int(info_age))
-                    self.num_checks = 0
-                self.num_checks += 1
-                cur_live_shards = self._get_cur_live_shards()
-                cur_live_shard_ids = set(cur_live_shards.keys())
 
-                logger.debug('Updated Redis shards: %s', cur_live_shard_ids)
+        while not self._should_stop.is_set():
+            published_shard_ids = ShardPublisher.get_live_shard_ids()
+            live_shards = self._get_live_shards()
+            live_shard_ids = set(live_shards.keys())
 
-                for shard_id in cur_live_shard_ids - published_shard_ids:
-                    # New shard
-                    ShardPublisher.add_shard(cur_live_shards[shard_id])
-                for shard_id in published_shard_ids - cur_live_shard_ids:
-                    # Removed shard
-                    ShardPublisher.del_shard(shard_id)
-                gevent.sleep(self._update_freq)
-        except Exception as e:
-            logger.error("local watcher caught exception %s", e)
-            time.sleep(2)
+            logger.info('Updated Redis shards: %s', live_shard_ids)
+
+            for shard_id in live_shard_ids - published_shard_ids:
+                # New shard
+                ShardPublisher.add_shard(live_shards[shard_id])
+            for shard_id in published_shard_ids - live_shard_ids:
+                # Removed shard
+                ShardPublisher.del_shard(shard_id)
+            gevent.sleep(self._update_freq)
 
     @classmethod
-    def _get_cur_live_shards(cls):
+    def _get_live_shards(cls):
         # type: () -> Mapping[str, RedisShard]
 
         """
