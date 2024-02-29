@@ -45,10 +45,12 @@ class InfoPoller(object):
         for shard in ShardPublisher.get_live_shards():
             self._add_shard(shard)
 
-    def set_wait(self, wait_on: AsyncResult):
+    def set_wait(self, wait_on):
+        # type: (AsyncResult) -> None
         self._wait_on = wait_on
 
-    def terminate(self, e: Exception):
+    def terminate(self, e):
+        # type: (Exception) -> None
         if self._wait_on:
             self._wait_on.set_exception(e)
 
