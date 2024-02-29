@@ -53,7 +53,7 @@ def main():
             watcher.set_wait(wait_event)
             poller.set_wait(wait_event)
             print('INFO server running.')
-            wait_event.wait()
+            wait_event.get()
     except KeyboardInterrupt:
         print('INFO server stopping.')
     finally:
