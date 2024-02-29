@@ -1,3 +1,5 @@
+from gevent.event import AsyncResult
+
 from .shard_pub import ShardPublisher
 import gevent
 import gevent.socket
@@ -33,6 +35,7 @@ class InfoPoller(object):
         self._greenlets = {}  # type: Dict[str, gevent.Greenlet]
         self.logger = logger or logging.getLogger(__name__)
         self._grace = grace
+        self._wait_on = None
 
         # Subscribe to receive shard event notifications
         ShardPublisher.subscribe_shard_event(ShardPublisher.ShardEvent.ADDED, self._add_shard)
@@ -41,6 +44,13 @@ class InfoPoller(object):
         # Start polling shards that already existed when we started
         for shard in ShardPublisher.get_live_shards():
             self._add_shard(shard)
+
+    def set_wait(self, wait_on: AsyncResult):
+        self._wait_on = wait_on
+
+    def terminate(self, e: Exception):
+        if self._wait_on:
+            self._wait_on.set_exception(e)
 
     def stop(self):
         # type: () -> None
@@ -77,10 +87,6 @@ class InfoPoller(object):
         self._greenlets[shard.id] = gevent.spawn(
             lambda: self._poll_shard(shard)
         )
-
-        def handle_unexpected_termination(_grnlt):
-            self.logger.error("one of greenlets exited unexpectedly..")
-        self._greenlets[shard.id].link_exception(handle_unexpected_termination)
 
     def _remove_shard(self, shard):
         # type: (RedisShard) -> None
@@ -147,4 +153,5 @@ class InfoPoller(object):
                 else:
                     self.logger.error("general exception caught more than %s consecutive times; poller %s exiting..",
                                  consecutive_general_failures, shard.id)
+                    self.terminate(e)
                     raise e
