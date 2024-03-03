@@ -50,8 +50,8 @@ def main():
     try:
         with redis_info_provider.LocalShardWatcher() as watcher , redis_info_provider.InfoPoller() as poller:
             wait_event  = AsyncResult()
-            watcher.set_wait(wait_event)
-            poller.set_wait(wait_event)
+            watcher.set_exception_event(wait_event)
+            poller.set_exception_event(wait_event)
             print('INFO server running.')
             wait_event.get()
     except KeyboardInterrupt:

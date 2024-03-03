@@ -1,4 +1,5 @@
 from gevent.event import AsyncResult
+from greenlet import GreenletExit
 
 from .shard_pub import ShardPublisher
 import gevent
@@ -35,7 +36,7 @@ class InfoPoller(object):
         self._greenlets = {}  # type: Dict[str, gevent.Greenlet]
         self.logger = logger or logging.getLogger(__name__)
         self._grace = grace
-        self._wait_on = None
+        self.exception_event = None
 
         # Subscribe to receive shard event notifications
         ShardPublisher.subscribe_shard_event(ShardPublisher.ShardEvent.ADDED, self._add_shard)
@@ -45,13 +46,17 @@ class InfoPoller(object):
         for shard in ShardPublisher.get_live_shards():
             self._add_shard(shard)
 
-    def set_wait(self, wait_on):
+    def set_exception_event(self, exception_evt):
         # type: (AsyncResult) -> None
 
         """
-        :param wait_on: event that user may give if he wishes to wait on the watcher termination
+        Configure an external event object that will be signaled if an unexpected exception occurs
+        inside a poller greenlet. This allows users of the module to be alerted if a poller terminates
+        due to an unhandled exception.
+        :param exception_evt: The event object. `wait_on.set_exception` will be called if an unhandled
+        exception occurs in a poller.
         """
-        self._wait_on = wait_on
+        self.exception_event = exception_evt
 
     def stop(self):
         # type: () -> None
@@ -146,6 +151,9 @@ class InfoPoller(object):
                     )
                 gevent.sleep(1)  # Cool-off period
                 continue  # Retry
+            except GreenletExit as e:
+                self.logger.info("poller %s exiting..", shard.id)
+                raise e
             except Exception as e:
                 consecutive_general_failures += 1
                 self.logger.error(" info_poller shard %s caught exception: %s",shard.id,e)
@@ -154,6 +162,6 @@ class InfoPoller(object):
                 else:
                     self.logger.error("general exception caught more than %s consecutive times; poller %s exiting..",
                                  consecutive_general_failures, shard.id)
-                    if self._wait_on:
-                        self._wait_on.set_exception(e)
+                    if self.exception_event:
+                        self.exception_event.set_exception(e)
                     raise e
