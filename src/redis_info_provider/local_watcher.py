@@ -42,12 +42,11 @@ class LocalShardWatcher(object):
 
     def set_wait(self, wait_on):
         # type: (AsyncResult) -> None
-        self._wait_on = wait_on
 
-    def terminate(self, e):
-        # type: (Exception) -> None
-        if self._wait_on:
-            self.wait_on.set_exception(e)
+        """
+        :param wait_on: event that user may give if he wishes to wait on the watcher termination
+        """
+        self._wait_on = wait_on
 
     def stop(self):
         # type: () -> None
@@ -86,9 +85,8 @@ class LocalShardWatcher(object):
                     ShardPublisher.del_shard(shard_id)
                 gevent.sleep(self._update_freq)
         except Exception as e:
-            self.terminate(e)
-
-
+            if self._wait_on:
+                self.wait_on.set_exception(e)
 
     @classmethod
     def _get_live_shards(cls):

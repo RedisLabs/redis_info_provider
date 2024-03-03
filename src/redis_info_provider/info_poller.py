@@ -47,12 +47,11 @@ class InfoPoller(object):
 
     def set_wait(self, wait_on):
         # type: (AsyncResult) -> None
-        self._wait_on = wait_on
 
-    def terminate(self, e):
-        # type: (Exception) -> None
-        if self._wait_on:
-            self._wait_on.set_exception(e)
+        """
+        :param wait_on: event that user may give if he wishes to wait on the watcher termination
+        """
+        self._wait_on = wait_on
 
     def stop(self):
         # type: () -> None
@@ -155,5 +154,6 @@ class InfoPoller(object):
                 else:
                     self.logger.error("general exception caught more than %s consecutive times; poller %s exiting..",
                                  consecutive_general_failures, shard.id)
-                    self.terminate(e)
+                    if self._wait_on:
+                        self._wait_on.set_exception(e)
                     raise e
