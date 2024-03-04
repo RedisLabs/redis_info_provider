@@ -53,7 +53,7 @@ class InfoPoller(object):
         Configure an external event object that will be signaled if an unexpected exception occurs
         inside a poller greenlet. This allows users of the module to be alerted if a poller terminates
         due to an unhandled exception.
-        :param exception_evt: The event object. `wait_on.set_exception` will be called if an unhandled
+        :param exception_evt: The event object. `exception_evt.set_exception` will be called if an unhandled
         exception occurs in a poller.
         """
         self.exception_event = exception_evt
@@ -151,9 +151,9 @@ class InfoPoller(object):
                     )
                 gevent.sleep(1)  # Cool-off period
                 continue  # Retry
-            except GreenletExit as e:
+            except GreenletExit:
                 self.logger.info("poller %s exiting..", shard.id)
-                raise e
+                raise
             except Exception as e:
                 consecutive_general_failures += 1
                 self.logger.error(" info_poller shard %s caught exception: %s",shard.id,e)

@@ -49,7 +49,7 @@ class LocalShardWatcher(object):
         Configure an external event object that will be signaled if an unexpected exception occurs
         inside a poller greenlet. This allows users of the module to be alerted if a poller terminates
         due to an unhandled exception.
-        :param exception_evt: The event object. `wait_on.set_exception` will be called if an unhandled
+        :param exception_evt: The event object. `exception_evt.set_exception` will be called if an unhandled
         exception occurs in a poller.
         """
         self.exception_event = exception_evt
@@ -90,9 +90,9 @@ class LocalShardWatcher(object):
                     # Removed shard
                     ShardPublisher.del_shard(shard_id)
                 gevent.sleep(self._update_freq)
-        except GreenletExit as e:
+        except GreenletExit:
             self.logger.info("local watcher exiting..")
-            raise e
+            raise
         except Exception as e:
             if self.exception_event:
                 self.exception_event.set_exception(e)
