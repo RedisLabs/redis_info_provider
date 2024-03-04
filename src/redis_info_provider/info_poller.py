@@ -164,4 +164,4 @@ class InfoPoller(object):
                                  consecutive_general_failures, shard.id)
                     if self.exception_event:
                         self.exception_event.set_exception(e)
-                    raise e
+                    raise
