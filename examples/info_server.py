@@ -3,6 +3,8 @@
 
 from __future__ import print_function
 import gevent.hub
+from gevent.event import AsyncResult
+
 import redis_info_provider
 import argparse
 from threading import Thread
@@ -46,12 +48,18 @@ def main():
     Thread(target=server.serve_forever).start()
 
     try:
-        with redis_info_provider.LocalShardWatcher(), redis_info_provider.InfoPoller():
+        with redis_info_provider.LocalShardWatcher() as watcher , redis_info_provider.InfoPoller() as poller:
+            wait_event  = AsyncResult()
+            watcher.set_exception_event(wait_event)
+            poller.set_exception_event(wait_event)
             print('INFO server running.')
-            gevent.sleep(float('inf'))
+            wait_event.get()
     except KeyboardInterrupt:
         print('INFO server stopping.')
+    except Exception as e:
+        print(f'INFO server caught exception:{e}')
     finally:
+        print('INFO server shutting.')
         server.shutdown()
         server.server_close()
 

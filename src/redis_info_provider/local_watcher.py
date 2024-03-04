@@ -3,9 +3,12 @@ import gevent.event
 import psutil
 import logging
 import redis
+from greenlet import GreenletExit
+
 from .shard_pub import ShardPublisher
 from .redis_shard import RedisShard
 from typing import Mapping, Iterator, Any
+from gevent.event import AsyncResult
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +39,20 @@ class LocalShardWatcher(object):
         """
         self._update_freq = update_frequency
         self._should_stop = gevent.event.Event()
+        self.exception_event = None
         self._greenlet = gevent.spawn(self._greenlet_main)
+
+    def set_exception_event(self, exception_evt):
+        # type: (AsyncResult) -> None
+
+        """
+        Configure an external event object that will be signaled if an unexpected exception occurs
+        inside a poller greenlet. This allows users of the module to be alerted if a poller terminates
+        due to an unhandled exception.
+        :param exception_evt: The event object. `exception_evt.set_exception` will be called if an unhandled
+        exception occurs in a poller.
+        """
+        self.exception_event = exception_evt
 
     def stop(self):
         # type: () -> None
@@ -59,20 +75,27 @@ class LocalShardWatcher(object):
     def _greenlet_main(self):
         # type: () -> None
 
-        while not self._should_stop.is_set():
-            published_shard_ids = ShardPublisher.get_live_shard_ids()
-            live_shards = self._get_live_shards()
-            live_shard_ids = set(live_shards.keys())
+        try:
+            while not self._should_stop.is_set():
+                published_shard_ids = ShardPublisher.get_live_shard_ids()
+                live_shards = self._get_live_shards()
+                live_shard_ids = set(live_shards.keys())
 
-            logger.info('Updated Redis shards: %s', live_shard_ids)
+                logger.info('Updated Redis shards: %s', live_shard_ids)
 
-            for shard_id in live_shard_ids - published_shard_ids:
-                # New shard
-                ShardPublisher.add_shard(live_shards[shard_id])
-            for shard_id in published_shard_ids - live_shard_ids:
-                # Removed shard
-                ShardPublisher.del_shard(shard_id)
-            gevent.sleep(self._update_freq)
+                for shard_id in live_shard_ids - published_shard_ids:
+                    # New shard
+                    ShardPublisher.add_shard(live_shards[shard_id])
+                for shard_id in published_shard_ids - live_shard_ids:
+                    # Removed shard
+                    ShardPublisher.del_shard(shard_id)
+                gevent.sleep(self._update_freq)
+        except GreenletExit:
+            self.logger.info("local watcher exiting..")
+            raise
+        except Exception as e:
+            if self.exception_event:
+                self.exception_event.set_exception(e)
 
     @classmethod
     def _get_live_shards(cls):

@@ -1,3 +1,6 @@
+from gevent.event import AsyncResult
+from greenlet import GreenletExit
+
 from .shard_pub import ShardPublisher
 import gevent
 import gevent.socket
@@ -21,8 +24,8 @@ class InfoPoller(object):
     and made available via the ShardPublisher.
     """
 
-    def __init__(self, grace=3):
-        # type: (int) -> None
+    def __init__(self, grace=3, logger=None):
+        # type: (int,Logger) -> None
 
         """
         :param grace: Number of consecutive times a shard polling needs to fail before
@@ -31,8 +34,9 @@ class InfoPoller(object):
             errors being logged unnecessarily.
         """
         self._greenlets = {}  # type: Dict[str, gevent.Greenlet]
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
         self._grace = grace
+        self.exception_event = None
 
         # Subscribe to receive shard event notifications
         ShardPublisher.subscribe_shard_event(ShardPublisher.ShardEvent.ADDED, self._add_shard)
@@ -41,6 +45,18 @@ class InfoPoller(object):
         # Start polling shards that already existed when we started
         for shard in ShardPublisher.get_live_shards():
             self._add_shard(shard)
+
+    def set_exception_event(self, exception_evt):
+        # type: (AsyncResult) -> None
+
+        """
+        Configure an external event object that will be signaled if an unexpected exception occurs
+        inside a poller greenlet. This allows users of the module to be alerted if a poller terminates
+        due to an unhandled exception.
+        :param exception_evt: The event object. `exception_evt.set_exception` will be called if an unhandled
+        exception occurs in a poller.
+        """
+        self.exception_event = exception_evt
 
     def stop(self):
         # type: () -> None
@@ -101,7 +117,8 @@ class InfoPoller(object):
         Shard-polling greenlet main().
         """
 
-        consecutive_failures = 0
+        consecutive_redis_failures = 0
+        consecutive_general_failures = 0
 
         # Retry loop. Redis errors (disconnects etc.) shouldn't stop us from polling as
         # long as the shard lives. However, other unexpected problems should at the
@@ -118,19 +135,33 @@ class InfoPoller(object):
                     self.logger.debug('Polled shard %s', shard.id)
                     info['meta'] = {}
                     shard.info = info
-                    consecutive_failures = 0
+                    consecutive_redis_failures = 0; consecutive_general_failures = 0
                     gevent.sleep(shard.polling_interval())
             except redis.RedisError:
-                consecutive_failures += 1
-                if consecutive_failures < self._grace:
+                consecutive_redis_failures += 1
+                if consecutive_redis_failures < self._grace:
                     self.logger.debug(
                         'Redis error polling shard %s for %d consecutive times; still within grace period; will retry',
-                        shard.id, consecutive_failures
+                        shard.id, consecutive_redis_failures
                     )
                 else:
                     self.logger.warning(
                         'Redis error polling shard %s for %d consecutive times; will retry',
-                        shard.id, consecutive_failures
+                        shard.id, consecutive_redis_failures
                     )
                 gevent.sleep(1)  # Cool-off period
                 continue  # Retry
+            except GreenletExit:
+                self.logger.info("poller %s exiting..", shard.id)
+                raise
+            except Exception as e:
+                consecutive_general_failures += 1
+                self.logger.error(" info_poller shard %s caught exception: %s",shard.id,e)
+                if consecutive_general_failures < self._grace:
+                    gevent.sleep(2)
+                else:
+                    self.logger.error("general exception caught more than %s consecutive times; poller %s exiting..",
+                                 consecutive_general_failures, shard.id)
+                    if self.exception_event:
+                        self.exception_event.set_exception(e)
+                    raise
