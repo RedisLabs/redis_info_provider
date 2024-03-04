@@ -56,7 +56,10 @@ def main():
             wait_event.get()
     except KeyboardInterrupt:
         print('INFO server stopping.')
+    except Exception as e:
+        print(f'INFO server caught exception:{e}')
     finally:
+        print('INFO server shutting.')
         server.shutdown()
         server.server_close()
 
