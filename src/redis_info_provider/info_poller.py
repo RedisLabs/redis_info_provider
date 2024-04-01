@@ -131,7 +131,7 @@ class InfoPoller(object):
 
                 # Will be stopped by a call to Greenlet.kill()
                 while True:
-                    info = redis_conn.info('all')
+                    info = redis_conn.info('everything')
                     self.logger.debug('Polled shard %s', shard.id)
                     info['meta'] = {}
                     shard.info = info
