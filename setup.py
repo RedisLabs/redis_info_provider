@@ -29,7 +29,7 @@ extras = {
 
 setup(
     name='redis-info-provider',
-    version='0.14.0',
+    version='0.15.0',
     python_requires='>=2.7',
     package_dir={'': 'src'},
     packages=find_packages('src'),
